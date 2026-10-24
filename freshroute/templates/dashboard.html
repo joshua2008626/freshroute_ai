@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% from 'partials/_macros.html' import kpi, empty, chart, filter_bar, source_badge, tip with context %}
+{% block title %}Dashboard{% endblock %}
+{% block heading %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ settings.cafeteria_name }}</h1>
+    <p>Predictions are estimates from past records. Recorded results are actual measurements. Quantities are in <b>{{ unit }}</b>.</p></div>
+  <div class="row"><a class="btn" href="{{ url_for('pages.plan_page') }}">Plan next meal</a>
+    <a class="btn secondary" href="{{ url_for('pages.record_new') }}">Record actuals</a></div>
+</div>
+
+{{ filter_bar(filters, settings.meals, categories) }}
+
+{% if excluded %}<div class="notice warn">{{ excluded }} record(s) in other units are left out so quantities are never mixed. Totals use <b>{{ unit }}</b> only.</div>{% endif %}
+
+{% if frame_empty %}
+  {{ empty('No records for these filters yet', 'Import a CSV, record a meal by hand, or load the synthetic demo data from Settings to see forecasts and waste analytics.', url_for('pages.import_page'), 'Import data') }}
+{% else %}
+
+<div class="kpis">
+  {% if nxt.total is not none %}
+    {{ kpi('Predicted servings · next meal', nxt.total|num(0), nxt.meal ~ ' on ' ~ (nxt.date|longdate) ~ ' · ' ~ (nxt.methods|join(', ')), unit, 'Sum of forecast demand for every item usually served at this meal on this weekday. A prediction, not an actual.', 'predicted') }}
+  {% else %}
+    {{ kpi('Predicted servings · next meal', none, 'No history for ' ~ nxt.meal ~ ' yet', unit, '', 'predicted') }}
+  {% endif %}
+  {{ kpi('Actual servings · latest recorded day', latest_actual|num(0) if latest_actual is not none else none, (latest_date|longdate) if latest_date else 'Record a meal to see this', unit, 'Total consumed on the most recent day in the filtered records.') }}
+  {{ kpi('Leftover quantity · period', kpis.leftovers|num(0), (kpis.redistributed|num(0) ~ ' ' ~ unit ~ ' recorded as redistributed') if kpis.redistributed else 'No redistribution recorded', unit, 'Prepared minus consumed, summed over the filtered records.') }}
+  {{ kpi('Food waste %', kpis.waste_pct|pct if kpis.waste_pct is not none else none, ('Leftovers ÷ prepared · ' ~ kpis.records ~ ' records'), '', 'Waste % = total leftovers ÷ total prepared × 100.') }}
+  {% if evaluation.baseline %}
+    {% set sel = evaluation.ml if evaluation.selected == 'ml' and evaluation.ml else evaluation.baseline %}
+    {{ kpi('Forecast error (held-out MAE)', sel.mae|num(1), 'Average miss on ' ~ evaluation.n_test ~ ' later observations', unit, 'Mean absolute error calculated on dates after ' ~ evaluation.split_date ~ ', which the model never saw when predicting.') }}
+  {% else %}
+    {{ kpi('Forecast error (held-out MAE)', none, 'Needs about 3–4 weeks of records', '', 'Reported only when enough later observations exist to measure it.') }}
+  {% endif %}
+  {% if change %}
+    {{ kpi('Waste trend · last ' ~ change.days ~ ' days', ('%+.1f'|format(change.delta)) ~ ' pts', change.recent|pct ~ ' now vs ' ~ (change.previous|pct) ~ ' before', '', 'Waste % over the latest 7 service days compared with the 7 before.') }}
+  {% else %}
+    {{ kpi('Waste trend', none, 'Needs 14+ service days', '', '') }}
+  {% endif %}
+</div>
+
+<div class="grid g-main">
+  {{ chart('trend', 'Demand trend', 'Recorded consumption per day with a 7-day average. Actual measurements.', 270) }}
+  <div class="card">
+    <h3>Recommendations for {{ nxt.meal }}</h3>
+    <div class="sub">{{ nxt.date|longdate }} · estimates, not guarantees</div>
+    {% if top_recs %}
+      <ul class="plain">
+      {% for r in top_recs %}
+        <li><div class="row spread"><b>{{ r.item }}</b><span class="badge b-pred">Suggest {{ r.suggested|num(0) }} {{ r.unit }}</span></div>
+          <div class="small muted">{% if r.usual is not none %}Usually {{ r.usual|num(0) }} · {{ '%+.0f'|format(r.difference) }} {{ r.unit }} vs usual.{% endif %} {{ r.reasons[0] }}</div></li>
+      {% endfor %}
+      </ul>
+      <a class="btn secondary small" style="margin-top:10px" href="{{ url_for('pages.plan_page', date=nxt.date, meal=nxt.meal) }}">Open full plan</a>
+    {% else %}
+      <p class="muted">No recommendation yet: {{ nxt.meal }} has no history in these records.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid g2" style="margin-top:16px">
+  {{ chart('pva', 'Predicted vs actual', 'Held-out period only (dates the model had not seen). Totals per day.', 250) }}
+  {{ chart('waste_item', 'Waste by menu item', 'Leftovers as % of prepared quantity.', 250) }}
+</div>
+{% if not evaluation.series %}<p class="small muted" style="margin-top:-6px">{{ evaluation.message }}</p>{% endif %}
+
+<div class="grid g2" style="margin-top:16px">
+  <div class="card">
+    <h3>Meal-wise summary</h3><div class="sub">Most recent recorded day · {{ latest_date|longdate }}</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Meal</th><th class="num">Prepared</th><th class="num">Consumed</th><th class="num">Left over</th><th class="num">Waste</th></tr></thead>
+      <tbody>{% for m in meal_summary %}<tr><td>{{ m.meal }}</td><td class="num">{{ m.prepared|num(0) }}</td><td class="num">{{ m.consumed|num(0) }}</td><td class="num">{{ m.leftovers|num(0) }}</td><td class="num">{{ m.waste_pct|pct }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <h3>What the data says</h3><div class="sub">Rule-based observations, shown only when records support them.</div>
+    {% for i in insights %}<div class="insight {{ i.severity }}"><span class="dot"></span><div>{{ i.text }}<small>Evidence: {{ i.evidence }}</small></div></div>
+    {% else %}<p class="muted">No pattern is strong enough to mention yet.</p>{% endfor %}
+    <a class="small" href="{{ url_for('pages.analytics_page') }}">See all analytics</a>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px"><div class="row spread" style="align-items:center;gap:12px">
+  <div><h3 style="margin:0">Time Machine</h3><div class="sub">Replay the last weeks as if you had followed the suggestions, with honest ranges where food ran out.</div></div>
+  <a class="btn" href="{{ url_for('pages.time_machine_page') }}">Open</a></div></div>
+<div class="card" style="margin-top:16px">
+  <div class="row spread"><h3>Recent activity</h3>
+    <span class="small muted">Data in view: {% for s in sources_in_view %}{{ source_badge(s) }} {% endfor %}</span></div>
+  {% if activity %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>When (UTC)</th><th>Activity</th><th>Source</th></tr></thead>
+    <tbody>{% for a in activity %}<tr><td class="small muted">{{ a.at }}</td><td>{{ a.text }}</td><td>{{ source_badge(a.source) }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="muted">Nothing has happened yet.</p>{% endif %}
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}{% include 'partials/_chart_scripts.html' %}{% endblock %}

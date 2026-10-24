@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% from 'partials/_macros.html' import csrf, empty, source_badge with context %}
+{% block title %}Waste records{% endblock %}
+{% block heading %}Waste records{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Waste records</h1>
+  <p>Waste % = leftovers ÷ prepared × 100. Leftovers = prepared − consumed. Redistributed food is recorded separately and is not subtracted from waste.</p></div>
+  <div class="row"><a class="btn" href="{{ url_for('pages.record_new') }}">Add record</a>
+    <a class="btn secondary" href="{{ url_for('pages.records_export', **args) }}">Export filtered CSV</a></div></div>
+
+<form class="filters" method="get" action="{{ url_for('pages.records_page') }}">
+  <div class="field" style="max-width:220px"><label for="r-q">Search</label><input id="r-q" type="search" name="q" value="{{ args.q or '' }}" placeholder="Item or note"></div>
+  <div class="field"><label for="r-start">From</label><input id="r-start" type="date" name="start" value="{{ args.start or '' }}"></div>
+  <div class="field"><label for="r-end">To</label><input id="r-end" type="date" name="end" value="{{ args.end or '' }}"></div>
+  <div class="field"><label for="r-meal">Meal</label><select id="r-meal" name="meal"><option value="">All</option>{% for m in settings.meals %}<option {{ 'selected' if args.meal == m }}>{{ m }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="r-item">Item</label><select id="r-item" name="item"><option value="">All</option>{% for i in items %}<option {{ 'selected' if args.item == i.name }}>{{ i.name }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="r-src">Source</label><select id="r-src" name="source"><option value="">All</option>{% for s in ('demo','upload','manual') %}<option value="{{ s }}" {{ 'selected' if args.source == s }}>{{ source_labels[s] }}</option>{% endfor %}</select></div>
+  <div class="row"><button class="btn" type="submit">Filter</button><a class="btn secondary" href="{{ url_for('pages.records_page') }}">Clear</a></div>
+</form>
+
+{% if total == 0 %}
+  {{ empty('No records match', 'Try clearing the filters, or add a record for a meal that has been served.', url_for('pages.record_new'), 'Add record') }}
+{% else %}
+<div class="notice good"><b>{{ total }}</b> record(s){% if unit %} · in <b>{{ unit }}</b>: prepared {{ summary.prepared|num(0) }}, consumed {{ summary.consumed|num(0) }}, left over {{ summary.leftovers|num(0) }}, waste {{ summary.waste_pct|pct }}{% endif %}{% if mixed_units %} · totals cover {{ unit }} only because the filtered rows mix units{% endif %}</div>
+<div class="table-wrap"><table>
+  <thead><tr><th>Date</th><th>Meal</th><th>Item</th><th class="num">Prepared</th><th class="num">Consumed</th><th class="num">Left over</th><th class="num">Redistributed</th><th class="num">Waste</th><th>Source</th><th>Notes</th><th></th></tr></thead>
+  <tbody>{% for r in rows %}
+    <tr><td>{{ r.date }}</td><td>{{ r.meal }}</td><td>{{ r.food_item }}<div class="small muted">{{ r.unit }}</div></td>
+      <td class="num">{{ r.prepared|num }}</td><td class="num">{{ r.consumed|num }}</td>
+      <td class="num">{{ r.leftovers|num }}{% if r.mismatch %} <span class="badge b-warn" title="Supplied leftovers ({{ r.supplied_leftovers|num }}) differed from prepared − consumed">check</span>{% endif %}</td>
+      <td class="num">{{ r.redistributed|num if r.redistributed else '-' }}</td><td class="num">{{ r.waste_pct|pct }}</td>
+      <td>{{ source_badge(r.source) }}</td><td class="small">{{ r.notes or '' }}</td>
+      <td class="row" style="flex-wrap:nowrap"><a class="btn secondary small" href="{{ url_for('pages.record_edit', record_id=r.id) }}">Edit</a>
+        <form method="post" action="{{ url_for('pages.record_delete', record_id=r.id) }}" data-confirm="Delete this record? This can’t be undone.">{{ csrf() }}<input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}"><button class="btn danger small" type="submit">Delete</button></form></td></tr>
+  {% endfor %}</tbody></table></div>
+{% if pages > 1 %}
+<div class="pager">
+  {% if page > 1 %}<a class="btn secondary small" href="{{ url_for('pages.records_page', page=page-1, **args) }}">Previous</a>{% endif %}
+  <span class="small muted">Page {{ page }} of {{ pages }}</span>
+  {% if page < pages %}<a class="btn secondary small" href="{{ url_for('pages.records_page', page=page+1, **args) }}">Next</a>{% endif %}
+</div>{% endif %}
+{% endif %}
+{% endblock %}

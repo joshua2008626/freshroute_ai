@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% from 'partials/_macros.html' import csrf, source_badge with context %}
+{% block title %}Settings{% endblock %}
+{% block heading %}Settings{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Settings &amp; data</h1><p>Configure meals, units and operational limits. This is a local, single-user tool: there is no login, so don’t expose it to a network.</p></div></div>
+
+<div class="grid g2">
+<form class="card" method="post" action="{{ url_for('pages.settings_general') }}">
+  {{ csrf() }}<h2>Cafeteria</h2>
+  <div class="field"><label for="s-name">Cafeteria name</label><input id="s-name" name="cafeteria_name" value="{{ settings.cafeteria_name }}" maxlength="80" required></div>
+  <div class="field"><label for="s-meals">Meal categories</label><textarea id="s-meals" name="meals" rows="4">{{ settings.meals|join('\n') }}</textarea><div class="hint">One per line. Meals used by existing records can’t be removed.</div></div>
+  <div class="form-grid">
+    <div class="field"><label for="s-units">Quantity units</label><textarea id="s-units" name="units" rows="4">{{ settings.units|join('\n') }}</textarea><div class="hint">Lowercase, one per line.</div></div>
+    <div class="field"><label for="s-du">Default unit</label><select id="s-du" name="default_unit">{% for u in settings.units %}<option {{ 'selected' if u == settings.default_unit }}>{{ u }}</option>{% endfor %}</select></div>
+  </div>
+  <h2 style="margin-top:8px">Operational constraints</h2>
+  <div class="form-grid">
+    <div class="field"><label for="s-buf">Safety buffer (%)</label><input id="s-buf" type="number" step="any" min="0" max="50" name="safety_buffer_pct" value="{{ settings.safety_buffer_pct }}"><div class="hint">Added on top of forecast demand.</div></div>
+    <div class="field"><label for="s-min">Global minimum preparation</label><input id="s-min" type="number" step="any" min="0" name="min_prep_default" value="{{ settings.min_prep_default }}"><div class="hint">No suggestion goes below this. Item minimums are set below.</div></div>
+    <div class="field"><label for="s-cut">Maximum reduction vs usual (%)</label><input id="s-cut" type="number" step="any" min="0" max="100" name="max_reduction_pct" value="{{ settings.max_reduction_pct }}"><div class="hint">Stops a suggestion from cutting your usual quantity too fast.</div></div>
+    <div class="field"><label for="s-ok">Acceptable waste (%)</label><input id="s-ok" type="number" step="any" min="0" max="100" name="acceptable_waste_pct" value="{{ settings.acceptable_waste_pct }}"><div class="hint">Treated as unavoidable in cost estimates.</div></div>
+    <div class="field"><label for="s-hi">High-waste threshold (%)</label><input id="s-hi" type="number" step="any" min="0" max="100" name="high_waste_threshold_pct" value="{{ settings.high_waste_threshold_pct }}"><div class="hint">Above this, items are flagged in insights.</div></div>
+  </div>
+  <button class="btn" type="submit">Save settings</button>
+</form>
+
+<div>
+  <div class="card" id="items"><h2>Item costs &amp; minimums</h2><p class="small muted">Optional. A cost per unit enables labelled cost estimates; a minimum prevents suggestions below a safe serving count.</p>
+    {% if items %}
+    <div class="table-wrap"><table><thead><tr><th>Item</th><th>Cost / unit</th><th>Minimum prep</th><th></th></tr></thead><tbody>
+      {% for i in items %}<tr>
+        <td><form id="if{{ i.id }}" method="post" action="{{ url_for('pages.settings_item', item_id=i.id) }}">{{ csrf() }}</form>{{ i.name }}<div class="small muted">{{ i.unit }} · {{ i.record_count }} records</div></td>
+        <td><label class="sr-only" for="c{{ i.id }}">Cost per unit for {{ i.name }}</label><input form="if{{ i.id }}" id="c{{ i.id }}" name="cost_per_unit" type="number" step="any" min="0" value="{{ '' if i.cost_per_unit is none else i.cost_per_unit }}" style="width:90px"></td>
+        <td><label class="sr-only" for="m{{ i.id }}">Minimum preparation for {{ i.name }}</label><input form="if{{ i.id }}" id="m{{ i.id }}" name="min_prep" type="number" step="any" min="0" value="{{ '' if i.min_prep is none else i.min_prep }}" style="width:90px"></td>
+        <td><button form="if{{ i.id }}" class="btn secondary small" type="submit">Save</button></td></tr>{% endfor %}
+    </tbody></table></div>
+    {% else %}<p class="muted">Items appear here once records exist.</p>{% endif %}
+  </div>
+
+  <div class="card" id="data" style="margin-top:16px"><h2>Dataset management</h2>
+    <p class="small">Stored records: {% for s in ('demo','upload','manual') %}{{ source_badge(s) }} {{ source_counts[s] }}&nbsp; {% endfor %}</p>
+    <div class="row">
+      <form method="post" action="{{ url_for('pages.settings_demo', action='load') }}">{{ csrf() }}<button class="btn secondary" type="submit">Load demo data</button></form>
+      <form method="post" action="{{ url_for('pages.settings_demo', action='reset') }}" data-confirm="Reset the synthetic demo data? Only demo records are replaced; your own records are kept.">{{ csrf() }}<button class="btn secondary" type="submit">Reset demo data</button></form>
+    </div>
+    <p class="small muted">Demo data is synthetic, for a fictional cafeteria, and always labelled as such.</p>
+    <h3 style="margin-top:14px">Delete data</h3>
+    <form method="post" action="{{ url_for('pages.settings_delete') }}" data-confirm="This permanently deletes the selected records. Continue?">
+      {{ csrf() }}
+      <div class="field"><label for="d-target">What to delete</label><select id="d-target" name="target">
+        <option value="demo">Synthetic demo records only</option><option value="upload">CSV-uploaded records only</option><option value="manual">Manually entered records only</option><option value="all">Everything (records, plans, forecasts, import history)</option></select></div>
+      <div class="field"><label for="d-confirm">Type DELETE to confirm</label><input id="d-confirm" name="confirm" autocomplete="off" placeholder="DELETE"></div>
+      <button class="btn danger" type="submit">Delete selected data</button>
+    </form>
+  </div>
+</div>
+</div>
+{% endblock %}

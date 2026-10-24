@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% from 'partials/_macros.html' import csrf, empty, source_badge, tip with context %}
+{% block title %}Forecast{% endblock %}
+{% block heading %}Forecast{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Demand forecast</h1>
+  <p>Pick a date, meal and dish. The estimate is computed on the server from your recorded history, and the method behind it is always shown.</p></div></div>
+
+{% if not items %}
+  {{ empty('No food items yet', 'Forecasts need history. Import a CSV or load the demo data first.', url_for('pages.import_page'), 'Import data') }}
+{% else %}
+<form class="filters" method="get" action="{{ url_for('pages.forecast_page') }}">
+  <div class="field"><label for="fc-date">Date</label><input id="fc-date" type="date" name="date" value="{{ form.date }}" required></div>
+  <div class="field"><label for="fc-meal">Meal</label><select id="fc-meal" name="meal">{% for m in settings.meals %}<option {{ 'selected' if form.meal == m }}>{{ m }}</option>{% endfor %}</select></div>
+  <div class="field" style="max-width:260px"><label for="fc-item">Menu item</label>
+    <select id="fc-item" name="item" required><option value="">Choose…</option>{% for i in items %}<option value="{{ i.name }}" {{ 'selected' if form.item == i.name }}>{{ i.name }} ({{ i.unit }})</option>{% endfor %}</select></div>
+  <div class="field"><label for="fc-students">Expected students (optional)</label>
+    <input id="fc-students" type="number" min="1" name="students" value="{{ form.students }}" placeholder="e.g. 850" title="Used only if past records of this item include attendance"></div></div>
+  <button class="btn" type="submit">Get forecast</button>
+</form>
+{% endif %}
+
+{% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+
+{% if result %}
+{% set fc = result.forecast %}{% set rec = result.recommendation %}
+<div class="result-hero">
+  <div class="kpi predicted"><div class="label">Estimated demand <span class="badge b-pred">Prediction</span></div>
+    <div class="big-num">{% if fc.estimate is not none %}{{ fc.estimate|num(0) }} <small style="font-size:1rem;color:var(--ink-3);font-family:var(--sans)">{{ fc.unit }}</small>{% else %}-{% endif %}</div>
+    <div class="foot">{{ fc.item }} · {{ fc.meal }} · {{ fc.weekday }} {{ fc.target_date }}</div></div>
+  <div class="kpi"><div class="label">Recommended preparation {{ tip('Forecast plus safety buffer, then limited by your minimum and maximum-reduction settings.') }}</div>
+    <div class="big-num">{% if rec.suggested is not none %}{{ rec.suggested|num(0) }}{% else %}-{% endif %}</div>
+    <div class="foot">{% if rec.usual is not none %}Usually prepared: {{ rec.usual|num(0) }} · difference {{ '%+.0f'|format(rec.difference) }} {{ fc.unit }}{% else %}No usual quantity on record{% endif %}</div></div>
+  <div class="kpi"><div class="label">Forecast method</div>
+    <div style="font-weight:650;color:var(--forest);margin-top:6px">{{ fc.method_label }}</div>
+    <div class="foot">{{ fc.n_obs }} past observation(s) used · data support: <b>{{ fc.data_support.label }}</b> {{ tip(fc.data_support.basis) }}</div></div>
+</div>
+
+{% if actual %}<div class="notice good"><b>Actual recorded for this date:</b> {{ actual.consumed|num }} {{ actual.unit }} consumed of {{ actual.prepared|num }} prepared ({{ source_badge(actual.source) }}). The forecast above used only records <i>before</i> this date.</div>{% endif %}
+{% for w in fc.warnings %}<div class="notice warn">{{ w }}</div>{% endfor %}
+
+<div class="grid g2">
+  <div class="card"><h3>Why this number</h3>
+    <ul class="reasons">{% for r in rec.reasons %}<li>{{ r }}</li>{% endfor %}</ul>
+    {% for c in rec.constraints %}<div class="notice warn" style="margin-top:8px">{{ c }}</div>{% endfor %}
+    {% if fc.range %}
+      <h3 style="margin-top:14px">Typical range</h3>
+      <div class="range-bar" aria-hidden="true">{% set hi = fc.range.high * 1.15 %}
+        <span style="left:{{ (fc.range.low / hi * 100)|round(1) }}%;width:{{ ((fc.range.high - fc.range.low) / hi * 100)|round(1) }}%"></span>
+        {% if fc.estimate is not none %}<i style="left:{{ [fc.estimate / hi * 100, 99]|min|round(1) }}%"></i>{% endif %}</div>
+      <p class="small">{{ fc.range.low|num }} – {{ fc.range.high|num }} {{ fc.unit }}. <span class="muted">{{ fc.range.basis }}</span></p>
+    {% endif %}
+    <h3 style="margin-top:14px">Forecast reliability</h3>
+    {% set ev = fc.evaluation %}
+    {% if ev.baseline_mae is not none %}
+      <p class="small">Across the dataset, error measured on {{ ev.n_test }} held-out observations (from {{ ev.split_date }}): baseline MAE <b>{{ ev.baseline_mae }}</b>{% if ev.ml_mae is not none %}, Random Forest MAE <b>{{ ev.ml_mae }}</b>{% endif %} {{ fc.unit }}. This describes the whole dataset, not a guarantee for this item.</p>
+    {% else %}
+      <p class="small muted">There isn’t enough data to measure forecast error, so no accuracy figure is shown.</p>
+    {% endif %}
+  </div>
+  <div class="card"><h3>Relevant history</h3><div class="sub">Latest observations of {{ fc.item }} at {{ fc.meal }} before {{ fc.target_date }}</div>
+    {% if fc.history %}
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th class="num">Prepared</th><th class="num">Consumed</th><th class="num">Left</th><th>Source</th></tr></thead>
+      <tbody>{% for h in fc.history|reverse %}<tr><td>{{ h.weekday }} {{ h.date }}</td><td class="num">{{ h.prepared|num }}</td><td class="num">{{ h.consumed|num }}</td><td class="num">{{ h.leftovers|num }}</td><td>{{ source_badge(h.source) }}</td></tr>{% endfor %}</tbody></table></div>
+    {% else %}<p class="muted">No earlier observations.</p>{% endif %}
+  </div>
+</div>
+
+{% if rec.suggested is not none %}
+<form class="card row spread" style="margin-top:16px" method="get" action="{{ url_for('pages.plan_page') }}">
+  <input type="hidden" name="date" value="{{ fc.target_date }}"><input type="hidden" name="meal" value="{{ fc.meal }}">
+  <div><b>Ready to plan?</b><div class="small muted">Review every item for {{ fc.meal }} and record the final quantities you decide on.</div></div>
+  <button class="btn" type="submit">Open prep plan</button>
+</form>
+{% endif %}
+{% endif %}
+{% endblock %}

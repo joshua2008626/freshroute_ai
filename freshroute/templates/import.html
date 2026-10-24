@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% from 'partials/_macros.html' import icon, csrf, empty with context %}
+{% block title %}Import data{% endblock %}
+{% block heading %}Import data{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Import cafeteria records</h1>
+    <p>Upload a CSV of what was prepared and consumed. Nothing is saved until you have seen the preview and confirmed, and existing records are never replaced.</p></div>
+  <a class="btn secondary" href="{{ url_for('pages.sample_csv') }}">{{ icon('download') }} Download sample CSV</a>
+</div>
+
+{% if not preview %}
+<div class="grid g-main">
+  <div class="card">
+    <h2>1. Choose a file</h2>
+    <form method="post" action="{{ url_for('pages.import_preview') }}" enctype="multipart/form-data" data-loading="Checking file…">
+      {{ csrf() }}
+      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose or drop a CSV file">
+        {{ icon('upload') }}
+        <p style="margin:8px 0 2px"><b>Drag a CSV file here</b> or click to browse</p>
+        <p class="small muted" id="file-label">.csv, UTF-8, up to 2 MB</p>
+        <input type="file" name="file" accept=".csv,text/csv" required>
+      </div>
+      <div class="row" style="margin-top:14px"><button class="btn" id="upload-submit" type="submit" disabled>Check file and preview</button>
+        <span class="small muted">Rows are validated first. You confirm before anything is stored.</span></div>
+    </form>
+  </div>
+  <div class="card">
+    <h2>CSV format</h2>
+    <p class="small"><b>Required:</b> {% for c in required %}<code>{{ c }}</code> {% endfor %}</p>
+    <p class="small"><b>Optional:</b> {% for c in optional %}<code>{{ c }}</code> {% endfor %}</p>
+    <pre class="code small">date,meal,food_item,quantity_prepared,quantity_consumed,unit,student_count
+2026-03-02,Lunch,Lemon Rice,260,231,servings,880
+2026-03-02,Dinner,Masala Dosa,210,198,servings,790</pre>
+    <ul class="small" style="padding-left:1.1em;margin:0">
+      <li>Dates are <code>YYYY-MM-DD</code> and cannot be in the future.</li>
+      <li>Meals and units must match those in Settings.</li>
+      <li>Leftovers are calculated as prepared − consumed. If you supply <code>leftovers</code> and it disagrees, the row is flagged, not silently changed.</li>
+      <li>An item keeps one unit; mixed units for one item are rejected.</li>
+    </ul>
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <h2>2. Preview: {{ filename }}</h2>
+  {% if preview.fatal %}
+    <div class="notice bad"><b>This file can’t be imported.</b> {{ preview.fatal }}</div>
+    {% if preview.columns.missing %}<p class="small">Columns found: {% for c in preview.columns.found %}<code>{{ c }}</code> {% else %}none recognised{% endfor %}</p>{% endif %}
+    <a class="btn secondary" href="{{ url_for('pages.import_page') }}">Choose another file</a>
+  {% else %}
+    <div class="stat-pills">
+      <div class="stat-pill"><b>{{ preview.counts.total }}</b>rows read</div>
+      <div class="stat-pill"><b>{{ preview.counts.valid + preview.counts.warning }}</b>valid new rows</div>
+      <div class="stat-pill {{ 'bad' if preview.counts.invalid }}"><b>{{ preview.counts.invalid }}</b>invalid</div>
+      <div class="stat-pill {{ 'warn' if preview.counts.warning }}"><b>{{ preview.counts.warning }}</b>with warnings</div>
+      <div class="stat-pill"><b>{{ preview.counts.duplicate }}</b>already stored (skipped)</div>
+    </div>
+    {% if previous %}<div class="notice warn">This exact file was already imported on {{ previous.uploaded_at }} UTC ({{ previous.imported_rows }} rows). Rows that already exist are skipped, not replaced.</div>{% endif %}
+    {% if preview.columns.ignored %}<div class="notice">Ignored columns: {% for c in preview.columns.ignored %}<code>{{ c }}</code> {% endfor %}</div>{% endif %}
+
+    {% if preview.errors %}
+    <details open><summary>{{ preview.counts.invalid }} invalid row(s) - these will be skipped</summary>
+      <ul class="small">{% for e in preview.errors[:25] %}<li><b>Row {{ e.row }}:</b> {{ e.messages|join(' ') }}</li>{% endfor %}</ul>
+      {% if preview.counts.invalid > 25 %}<p class="small muted">Showing the first 25.</p>{% endif %}
+    </details>
+    {% endif %}
+
+    <h3 style="margin-top:14px">Rows that will be imported</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Row</th><th>Status</th><th>Date</th><th>Meal</th><th>Item</th><th class="num">Prepared</th><th class="num">Consumed</th><th class="num">Left over</th><th>Unit</th><th>Notes</th></tr></thead>
+      <tbody>{% for r in preview.rows[:60] %}
+        <tr class="row-{{ r.status }}"><td>{{ r.row }}</td><td>{{ r.status|capitalize }}</td>
+        {% if r.data %}<td>{{ r.data.date }}</td><td>{{ r.data.meal }}</td><td>{{ r.data.food_item }}</td><td class="num">{{ r.data.prepared|num }}</td><td class="num">{{ r.data.consumed|num }}</td><td class="num">{{ r.data.leftovers|num }}</td><td>{{ r.data.unit }}</td>
+          <td class="small">{{ (r.warnings + r.errors)|join(' ') }}</td>
+        {% else %}<td colspan="7" class="small">{{ r.errors|join(' ') }}</td><td></td><td></td>{% endif %}</tr>
+      {% endfor %}</tbody></table></div>
+    <p class="small muted">Preview shows up to 60 rows; all valid rows are imported.</p>
+
+    <form method="post" action="{{ url_for('pages.import_confirm') }}" class="row" style="margin-top:14px" data-loading="Importing…">
+      {{ csrf() }}<input type="hidden" name="token" value="{{ token }}"><input type="hidden" name="filename" value="{{ filename }}">
+      <button class="btn" type="submit" {{ 'disabled' if not preview.counts.importable }}>Import {{ preview.counts.importable }} row(s)</button>
+      <a class="btn secondary" href="{{ url_for('pages.import_page') }}">Cancel</a>
+      <span class="small muted">Records are stored as “CSV upload”, separate from the synthetic demo data.</span>
+    </form>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="card" style="margin-top:16px">
+  <h3>Import history</h3>
+  {% if imports %}
+  <div class="table-wrap"><table><thead><tr><th>When (UTC)</th><th>File</th><th class="num">Rows</th><th class="num">Imported</th><th class="num">Invalid</th><th class="num">Duplicates</th></tr></thead>
+    <tbody>{% for i in imports %}<tr><td>{{ i.uploaded_at }}</td><td>{{ i.filename }}</td><td class="num">{{ i.total_rows }}</td><td class="num">{{ i.imported_rows }}</td><td class="num">{{ i.invalid_rows }}</td><td class="num">{{ i.duplicate_rows }}</td></tr>{% endfor %}</tbody></table></div>
+  {% else %}<p class="muted">No files imported yet.</p>{% endif %}
+</div>
+{% endblock %}

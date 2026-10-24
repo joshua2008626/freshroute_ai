@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% from 'partials/_macros.html' import empty with context %}
+{% block title %}{{ title }}{% endblock %}
+{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px;margin:30px auto;text-align:center">
+  <h1>{{ title }}</h1><p>{{ message }}</p>
+  <div class="row" style="justify-content:center"><a class="btn" href="{{ url_for('pages.dashboard') }}">Go to dashboard</a><a class="btn secondary" href="{{ url_for('pages.landing') }}">Home</a></div>
+  <p class="small muted">Error {{ code }}</p>
+</div>
+{% endblock %}

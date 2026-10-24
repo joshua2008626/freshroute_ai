@@ -1,0 +1,106 @@
+{% from 'partials/_macros.html' import logo, icon with context %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ APP_NAME }} · {{ TAGLINE }}</title>
+  <meta name="description" content="Forecast cafeteria demand from your own consumption records and prepare closer to what is eaten.">
+  <link rel="icon" href="{{ url_for('static', filename='img/favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body class="land">
+<a class="skip" href="#top">Skip to content</a>
+<header class="land-nav">
+  <a class="brand" href="{{ url_for('pages.landing') }}">{{ logo(38) }}<span><b>FreshRoute AI</b><small>{{ TAGLINE }}</small></span></a>
+  <nav aria-label="Site">
+    <a href="#how">How it works</a><a href="#features">Features</a><a href="#impact">Impact</a>
+    <a class="btn" href="{{ url_for('pages.dashboard') }}">Open dashboard</a>
+  </nav>
+</header>
+
+<main id="top">
+<section class="hero">
+  <div>
+    <span class="tag">{{ icon('leaf') }} Built for college cafeterias</span>
+    <h1>Prepare what your cafeteria will actually serve.</h1>
+    <p class="lead">Cafeterias cook by habit, so some dishes end up in the bin while others sell out. FreshRoute AI reads your own consumption records, forecasts demand for each dish and meal, and suggests how much to prepare. You stay in charge of the final number.</p>
+    <div class="cta-row">
+      <a class="btn big" href="{{ url_for('pages.dashboard') }}">Explore the demo dashboard</a>
+      <a class="btn big secondary" href="{{ url_for('pages.import_page') }}">Import your data</a>
+    </div>
+    <p class="small muted" style="margin-top:14px">Runs locally. No account, no API keys, no internet needed after setup.</p>
+  </div>
+
+  <div class="preview" aria-label="Illustrative preview of the forecast screen">
+    <div class="preview-inner">
+      <div class="row spread" style="margin-bottom:10px">
+        <div><b style="font-family:var(--display);font-size:1.05rem;color:var(--forest)">Lunch · Sambar Rice</b><div class="small muted">Preparation suggestion</div></div>
+        <span class="badge b-pred">Forecast</span>
+      </div>
+      <div class="pv-kpis">
+        <div><small>Forecast demand</small><b>304</b></div>
+        <div><small>Usually prepared</small><b>426</b></div>
+        <div><small>Suggested</small><b>320</b></div>
+      </div>
+      <svg viewBox="0 0 420 130" width="100%" role="img" aria-label="Illustrative chart: prepared quantity stays above consumed quantity">
+        <g stroke="#e7e2d2"><line x1="30" x2="410" y1="110" y2="110"/><line x1="30" x2="410" y1="70" y2="70"/><line x1="30" x2="410" y1="30" y2="30"/></g>
+        <polyline fill="none" stroke="#4b6cb7" stroke-width="2.4" stroke-linejoin="round" points="30,38 80,40 130,36 180,41 230,37 280,60 330,64 380,39 410,38"/>
+        <polyline fill="none" stroke="#178a55" stroke-width="2.4" stroke-linejoin="round" points="30,72 80,66 130,74 180,68 230,70 280,96 330,100 380,70 410,73"/>
+        <text x="34" y="124" font-size="10" fill="#6f7b74">Weekday pattern: demand dips at the weekend, preparation barely moves</text>
+      </svg>
+      <div class="legend" style="margin:4px 0 0"><span><i class="line" style="background:#4b6cb7"></i>Prepared</span><span><i class="line" style="background:#178a55"></i>Consumed</span></div>
+    </div>
+    <div class="tag-demo">Illustrative example · synthetic demonstration data for a fictional cafeteria</div>
+  </div>
+</section>
+
+<section class="sect alt" id="how">
+  <h2>From a spreadsheet to a preparation plan in three steps</h2>
+  <p class="intro">The loop closes itself: every meal you record becomes history the next forecast learns from.</p>
+  <div class="steps">
+    <div class="step"><div class="ic">{{ icon('upload') }}</div><h3>1. Upload data</h3><p>Drop in a CSV of what was prepared and consumed. Every row is checked, and you preview the result before anything is saved.</p></div>
+    <div class="step"><div class="ic">{{ icon('spark') }}</div><h3>2. Forecast demand</h3><p>A documented baseline is always available. A Random Forest is used only when it beats that baseline on held-out, later dates.</p></div>
+    <div class="step"><div class="ic">{{ icon('plate') }}</div><h3>3. Reduce waste</h3><p>Adjust the suggested quantity, record the plan, then log what was really consumed and left over.</p></div>
+  </div>
+</section>
+
+<section class="sect" id="problem">
+  <div class="problem">
+    <div><h2>The problem: too much of one dish, too little of another</h2>
+      <p class="intro">Attendance changes by weekday, by exam week and by menu. Preparation usually follows last week's habit. The gap shows up as leftovers on some items and stock-outs on others.</p></div>
+    <div><h2>What FreshRoute does about it</h2>
+      <p class="intro">It turns your own history into a forecast per dish and meal, explains where the number came from, and refuses to claim accuracy it has not measured.</p></div>
+  </div>
+</section>
+
+<section class="sect alt" id="features">
+  <h2>Everything a kitchen manager needs, nothing they have to trust blindly</h2>
+  <div class="features" style="margin-top:20px">
+    <div class="feature">{{ icon('spark') }}<h3>Demand forecasting</h3><p>Per-dish, per-meal estimates with the method and number of observations shown next to every result.</p></div>
+    <div class="feature">{{ icon('clipboard') }}<h3>Preparation recommendations</h3><p>Safety buffer, minimum servings and a cap on cuts keep suggestions practical. Edit any quantity before saving.</p></div>
+    <div class="feature">{{ icon('table') }}<h3>Waste tracking</h3><p>Record prepared, consumed, leftover and redistributed quantities. Edit, search, filter and export.</p></div>
+    <div class="feature">{{ icon('doc') }}<h3>Reports</h3><p>Printable reports, CSV summaries and a PDF for any date range, with estimates clearly labelled.</p></div>
+  </div>
+</section>
+
+<section class="sect" id="impact">
+  <div class="impact">
+    <div><h2>Sustainability you can measure, not slogans</h2>
+      <p>FreshRoute reports what your records show: quantities prepared, consumed and left over, in your own units. It does not convert food into carbon, money or meals saved unless you provide the cost per unit, and then it labels the result an estimate.</p>
+      <div class="cta-row"><a class="btn big" style="background:var(--mint);color:var(--forest);border-color:var(--mint)" href="{{ url_for('pages.dashboard') }}">Open the dashboard</a></div></div>
+    <ul>
+      <li><b>Leftovers by dish</b>See which items are repeatedly over-prepared.</li>
+      <li><b>Recorded redistribution</b>Donated or reused food is logged separately, never assumed.</li>
+      <li><b>Held-out forecast error</b>Reported only when it has been calculated on later dates.</li>
+    </ul>
+  </div>
+</section>
+</main>
+
+<footer class="land-foot">
+  <div><b style="color:var(--forest)">FreshRoute AI</b> · B.Tech Artificial Intelligence &amp; Machine Learning project. Flask, Pandas, scikit-learn, SQLite.</div>
+  <div>Demo data is synthetic and belongs to a fictional cafeteria. No customers, savings or environmental impact are claimed.</div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,43 @@
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local application data (SQLite DB, uploaded files, models, logs)
+instance/
+*.sqlite3
+*.db
+*.joblib
+
+# Private datasets and exports
+uploads/
+exports/
+data/private/
+*.private.csv
+
+# Secrets
+.env
+.env.*
+*.pem
+*.key
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+.idea/
+
+# Build artifacts
+dist/
+build/
+*.zip

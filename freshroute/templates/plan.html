@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% from 'partials/_macros.html' import csrf, empty, tip with context %}
+{% block title %}Prep plan{% endblock %}
+{% block heading %}Preparation plan{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Preparation plan</h1>
+  <p>Suggestions come from the forecast and your settings. They are estimates: change any quantity before saving. The final decision is the operator’s.</p></div></div>
+
+<form class="filters" method="get" action="{{ url_for('pages.plan_page') }}">
+  <div class="field"><label for="p-date">Date</label><input id="p-date" type="date" name="date" value="{{ plan_date }}"></div>
+  <div class="field"><label for="p-meal">Meal</label><select id="p-meal" name="meal">{% for m in settings.meals %}<option {{ 'selected' if m == meal }}>{{ m }}</option>{% endfor %}</select></div>
+  <button class="btn" type="submit">Show plan</button>
+</form>
+
+<div class="notice">Planning <b>{{ meal }}</b> for <b>{{ weekday }}, {{ plan_date }}</b>. Minimum preparation: {{ settings.min_prep_default|num }} (global) · reductions capped at {{ settings.max_reduction_pct|num }}% · safety buffer {{ settings.safety_buffer_pct|num }}%. <a href="{{ url_for('pages.settings_page') }}">Change in Settings</a></div>
+
+{% if not rows %}
+  {{ empty('No history for ' ~ meal, 'There are no past records for this meal, so nothing can be suggested. Import data or record meals first.', url_for('pages.import_page'), 'Import data') }}
+{% else %}
+<form method="post" action="{{ url_for('pages.plan_save') }}" data-loading="Saving plan…">
+  {{ csrf() }}<input type="hidden" name="date" value="{{ plan_date }}"><input type="hidden" name="meal" value="{{ meal }}">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Item</th><th class="num">Recent avg consumed {{ tip('Average of the last 7 recorded days for this item and meal.') }}</th><th class="num">Forecast</th><th class="num">Usually prepared</th><th class="num">Suggested</th><th class="num">Δ vs usual</th><th>Final quantity</th><th>Why</th></tr></thead>
+    <tbody>
+    {% for r in rows %}{% set fc = r.forecast %}{% set rec = r.recommendation %}
+      {% set hist_avg = (fc.history[-7:]|map(attribute='consumed')|list) %}
+      <tr>
+        <td><b>{{ fc.item }}</b><div class="small muted">{{ fc.n_obs }} obs · {{ fc.unit }}</div><input type="hidden" name="item" value="{{ fc.item }}"></td>
+        <td class="num">{% if hist_avg %}{{ (hist_avg|sum / hist_avg|length)|num(0) }}{% else %}-{% endif %}</td>
+        <td class="num">{{ fc.estimate|num(0) if fc.estimate is not none else '-' }}<div class="small muted">{{ fc.method_label.replace('Baseline: ', '') }}</div></td>
+        <td class="num">{{ rec.usual|num(0) if rec.usual is not none else '-' }}</td>
+        <td class="num"><b>{{ rec.suggested|num(0) if rec.suggested is not none else '-' }}</b></td>
+        <td class="num" id="d-{{ loop.index }}">{% if rec.difference is not none %}{{ '%+.0f'|format(rec.difference) }}{% else %}-{% endif %}</td>
+        <td><label class="sr-only" for="fin-{{ loop.index }}">Final quantity for {{ fc.item }}</label>
+          <input class="plan-input" id="fin-{{ loop.index }}" type="number" step="any" min="0" name="final" required
+                 value="{{ '%g'|format(saved[fc.item].final_qty if fc.item in saved else (rec.suggested if rec.suggested is not none else (rec.usual if rec.usual is not none else 0))) }}"
+                 {% if rec.usual is not none %}data-usual="{{ rec.usual }}" data-delta="d-{{ loop.index }}"{% endif %}>
+          <input type="text" name="note" maxlength="200" placeholder="Note (optional)" value="{{ saved[fc.item].note or '' if fc.item in saved else '' }}" style="margin-top:4px;font-size:.8rem">
+          {% if fc.item in saved %}<div class="small muted">Saved plan: {{ saved[fc.item].final_qty|num }}</div>{% endif %}</td>
+        <td style="min-width:220px"><details><summary class="small">Explain</summary><ul class="reasons small">{% for x in rec.reasons %}<li>{{ x }}</li>{% endfor %}</ul>
+          {% for c in rec.constraints %}<div class="small" style="color:#5c4200">⚠ {{ c }}</div>{% endfor %}</details></td>
+      </tr>
+    {% endfor %}
+    </tbody></table></div>
+  <div class="row" style="margin-top:14px"><button class="btn" type="submit">Save preparation plan</button>
+    <span class="small muted">After service, record the real numbers: <a href="{{ url_for('pages.record_new', date=plan_date, meal=meal) }}">Record actuals</a>.</span></div>
+</form>
+{% endif %}
+
+<div class="card" style="margin-top:20px"><h3>Saved plans</h3>
+  {% if plans %}
+  <div class="table-wrap"><table><thead><tr><th>Date</th><th>Meal</th><th>Item</th><th class="num">Forecast</th><th class="num">Suggested</th><th class="num">Final</th><th>Adjusted?</th><th></th></tr></thead>
+    <tbody>{% for p in plans %}<tr><td>{{ p.plan_date }}</td><td>{{ p.meal }}</td><td>{{ p.food_item }}</td><td class="num">{{ p.forecast_qty|num(0) if p.forecast_qty is not none else '-' }}</td><td class="num">{{ p.suggested_qty|num(0) if p.suggested_qty is not none else '-' }}</td><td class="num"><b>{{ p.final_qty|num }}</b> {{ p.unit }}</td><td>{{ 'Yes' if p.override else 'No' }}</td>
+      <td><a class="small" href="{{ url_for('pages.record_new', date=p.plan_date, meal=p.meal, food_item=p.food_item, quantity_prepared=p.final_qty, unit=p.unit) }}">Record actuals</a></td></tr>{% endfor %}</tbody></table></div>
+  {% else %}<p class="muted">No plans saved yet.</p>{% endif %}
+</div>
+{% endblock %}

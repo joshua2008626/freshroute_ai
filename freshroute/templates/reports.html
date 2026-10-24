@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% from 'partials/_macros.html' import empty, source_badge, icon with context %}
+{% block title %}Reports{% endblock %}
+{% block heading %}Reports{% endblock %}
+{% block content %}
+{% set qs = {'start': filters.start, 'end': filters.end, 'unit': filters.unit} %}
+<div class="page-head no-print"><div><h1>Reports</h1><p>Choose a period, review it here, then print it or download a CSV or PDF.</p></div></div>
+<form class="filters no-print" method="get" action="{{ url_for('pages.reports_page') }}">
+  <div class="field"><label for="rp-start">From</label><input id="rp-start" type="date" name="start" value="{{ filters.start }}" {% if bounds[0] %}min="{{ bounds[0] }}"{% endif %}></div>
+  <div class="field"><label for="rp-end">To</label><input id="rp-end" type="date" name="end" value="{{ filters.end }}" {% if bounds[1] %}max="{{ bounds[1] }}"{% endif %}></div>
+  <button class="btn" type="submit">Build report</button>
+  <div class="row" style="margin-left:auto">
+    <button class="btn secondary" type="button" data-print>Print</button>
+    <a class="btn secondary" href="{{ url_for('pages.report_summary_csv', **qs) }}">{{ icon('download') }} Summary CSV</a>
+    <a class="btn secondary" href="{{ url_for('pages.records_export', start=filters.start, end=filters.end) }}">{{ icon('download') }} Records CSV</a>
+    <a class="btn" href="{{ url_for('pages.report_pdf', **qs) }}">{{ icon('download') }} PDF</a>
+  </div>
+</form>
+
+{% if report.coverage.records == 0 %}
+  {{ empty('No records in this period', 'Pick a wider date range, or import data first.', url_for('pages.import_page'), 'Import data') }}
+{% else %}
+<article class="card" id="report">
+  <h1 style="margin-bottom:2px">{{ report.cafeteria }} · Waste &amp; forecast report</h1>
+  <p class="muted">Period {{ report.start }} to {{ report.end }} · generated {{ report.generated }} · quantities in <b>{{ report.unit }}</b></p>
+  <p>Data sources: {% for s in report.sources %}{{ source_badge(s) }} {% endfor %}</p>
+  {% if report.has_demo %}<div class="notice warn"><b>Contains synthetic demonstration data</b> for a fictional cafeteria. These are not real performance figures.</div>{% endif %}
+  {% if report.excluded_rows %}<div class="notice">{{ report.excluded_rows }} record(s) in other units were excluded.</div>{% endif %}
+
+  <h2>Recorded results <span class="badge b-actual">Actual measurements</span></h2>
+  <table><tbody>
+    <tr><td>Coverage</td><td class="num">{{ report.coverage.records }} records · {{ report.coverage.days }} service days · {{ report.coverage.items }} items</td></tr>
+    <tr><td>Prepared</td><td class="num">{{ report.kpis.prepared|num }} {{ report.unit }}</td></tr>
+    <tr><td>Consumed</td><td class="num">{{ report.kpis.consumed|num }} {{ report.unit }}</td></tr>
+    <tr><td>Leftovers</td><td class="num">{{ report.kpis.leftovers|num }} {{ report.unit }}</td></tr>
+    <tr><td>Redistributed (recorded separately)</td><td class="num">{{ report.kpis.redistributed|num }} {{ report.unit }}</td></tr>
+    <tr><td>Waste % (leftovers ÷ prepared)</td><td class="num"><b>{{ report.kpis.waste_pct|pct }}</b></td></tr>
+    {% if report.mismatch_rows %}<tr><td>Rows with leftover discrepancies</td><td class="num">{{ report.mismatch_rows }}</td></tr>{% endif %}
+  </tbody></table>
+
+  <h2 style="margin-top:20px">By meal</h2>
+  <div class="table-wrap"><table><thead><tr><th>Meal</th><th class="num">Records</th><th class="num">Prepared</th><th class="num">Consumed</th><th class="num">Leftovers</th><th class="num">Waste</th></tr></thead><tbody>
+    {% for r in report.by_meal %}<tr><td>{{ r.meal }}</td><td class="num">{{ r.records|num(0) }}</td><td class="num">{{ r.prepared|num }}</td><td class="num">{{ r.consumed|num }}</td><td class="num">{{ r.leftovers|num }}</td><td class="num">{{ r.waste_pct|pct }}</td></tr>{% endfor %}</tbody></table></div>
+
+  <h2 style="margin-top:20px">By food item</h2>
+  <div class="table-wrap"><table><thead><tr><th>Item</th><th class="num">Records</th><th class="num">Prepared</th><th class="num">Consumed</th><th class="num">Leftovers</th><th class="num">Waste</th></tr></thead><tbody>
+    {% for r in report.by_item %}<tr><td>{{ r.food_item }}</td><td class="num">{{ r.records|num(0) }}</td><td class="num">{{ r.prepared|num }}</td><td class="num">{{ r.consumed|num }}</td><td class="num">{{ r.leftovers|num }}</td><td class="num">{{ r.waste_pct|pct }}</td></tr>{% endfor %}</tbody></table></div>
+
+  <h2 style="margin-top:20px">Forecast evaluation <span class="badge b-pred">Held-out estimate</span></h2>
+  {% set ev = report.evaluation %}
+  {% if ev and ev.baseline %}
+    <p>Computed on {{ ev.n_test }} observations dated {{ ev.split_date }} or later; models used only earlier dates. Baseline MAE <b>{{ ev.baseline.mae }}</b>{% if ev.ml %}, Random Forest MAE <b>{{ ev.ml.mae }}</b>{% endif %} {{ report.unit }}. Forecasts use the {{ 'Random Forest' if ev.selected == 'ml' else 'baseline' }}.</p>
+    <p class="small muted">{{ ev.message }}</p>
+  {% else %}<p class="muted">{{ ev.message if ev else 'Not enough data.' }}</p>{% endif %}
+
+  {% if report.insights %}<h2 style="margin-top:20px">Observations</h2>
+    {% for i in report.insights %}<div class="insight {{ i.severity }}"><span class="dot"></span><div>{{ i.text }}{% if i.severity == 'estimate' %} <span class="badge b-neutral">Estimate</span>{% endif %}</div></div>{% endfor %}{% endif %}
+  <p class="small muted" style="margin-top:18px">Forecasts and cost figures are estimates, not guarantees. Recommendations support, and do not replace, the operator’s judgement.</p>
+</article>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% from 'partials/_macros.html' import kpi, empty, chart, filter_bar with context %}
+{% block title %}Analytics{% endblock %}
+{% block heading %}Analytics{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Analytics &amp; sustainability insights</h1>
+  <p>Everything here is computed from stored records in <b>{{ unit }}</b>. Observations appear only when the data supports them.</p></div></div>
+{{ filter_bar(filters, settings.meals, categories) }}
+{% if excluded %}<div class="notice warn">{{ excluded }} record(s) in other units are excluded from these charts.</div>{% endif %}
+
+{% if frame_empty %}
+  {{ empty('Nothing to analyse yet', 'Analytics update automatically as records are imported or recorded.', url_for('pages.import_page'), 'Import data') }}
+{% else %}
+<div class="grid g2">
+  {{ chart('daily', 'Daily waste trend', 'Leftovers ÷ prepared per day', 240) }}
+  {{ chart('weekly', 'Weekly waste trend', 'Weeks start on Monday', 240) }}
+</div>
+<div class="grid g2" style="margin-top:16px">
+  {{ chart('waste_item', 'Food-item waste comparison', 'Highest waste % first', 300) }}
+  {{ chart('meals', 'Preparation vs consumption by meal', 'Totals over the selected period', 300) }}
+</div>
+<div class="grid g2" style="margin-top:16px">
+  {{ chart('pvc', 'Prepared vs consumed per day', 'The gap between the lines is leftover food', 260) }}
+  {{ chart('meal_waste', 'Waste pattern by meal', 'Waste % per meal type', 260) }}
+</div>
+<div class="grid g2" style="margin-top:16px">
+  {{ chart('weekday', 'Waste by weekday', 'Waste % per weekday', 240) }}
+  {{ chart('pva', 'Predicted vs actual demand', 'Held-out period only', 240) }}
+</div>
+
+<div class="grid g2" style="margin-top:16px">
+  <div class="card"><h3>Forecast evaluation</h3>
+    <div class="sub">Chronological split: models see only earlier dates; error is measured on later ones.</div>
+    {% if evaluation.baseline %}
+      <div class="table-wrap"><table><thead><tr><th>Measure</th><th class="num">Baseline</th>{% if evaluation.ml %}<th class="num">Random Forest</th>{% endif %}</tr></thead><tbody>
+        <tr><td>MAE ({{ unit }})</td><td class="num">{{ evaluation.baseline.mae }}</td>{% if evaluation.ml %}<td class="num">{{ evaluation.ml.mae }}</td>{% endif %}</tr>
+        <tr><td>RMSE</td><td class="num">{{ evaluation.baseline.rmse }}</td>{% if evaluation.ml %}<td class="num">{{ evaluation.ml.rmse }}</td>{% endif %}</tr>
+        <tr><td>WAPE</td><td class="num">{{ evaluation.baseline.wape_pct|pct }}</td>{% if evaluation.ml %}<td class="num">{{ evaluation.ml.wape_pct|pct }}</td>{% endif %}</tr>
+        <tr><td>Bias (over + / under −)</td><td class="num">{{ evaluation.baseline.bias }}</td>{% if evaluation.ml %}<td class="num">{{ evaluation.ml.bias }}</td>{% endif %}</tr>
+      </tbody></table></div>
+      <p class="small" style="margin-top:8px">Held-out observations: <b>{{ evaluation.n_test }}</b> from {{ evaluation.split_date }} · training rows for the Random Forest: {{ evaluation.n_train }} · method used for forecasts: <b>{{ 'Random Forest' if evaluation.selected == 'ml' else 'Baseline' }}</b>.</p>
+      <p class="small muted">{{ evaluation.message }}</p>
+      {% if evaluation.prepared_gap %}<p class="small">For comparison, the quantity actually prepared missed consumption by an average of <b>{{ evaluation.prepared_gap.mae }}</b> {{ unit }} on the same observations.</p>{% endif %}
+      {% if evaluation.feature_importance %}<details><summary class="small">What the Random Forest relied on</summary><ul class="small">{% for f in evaluation.feature_importance %}<li>{{ f.feature }}: {{ f.importance }}</li>{% endfor %}</ul></details>{% endif %}
+    {% else %}<div class="notice warn">{{ evaluation.message }}</div>{% endif %}
+    <h3 style="margin-top:14px">Forecasts you made, checked against what happened</h3>
+    {% if live.mae is not none %}<p class="small">{{ live.n }} logged forecast(s) were later matched to recorded actuals: average miss <b>{{ live.mae }}</b> {{ unit }}.</p>
+    {% else %}<p class="small muted">{{ live.n }} of {{ live.min_required }} forecast/actual pairs so far. Make a forecast or save a plan, then record the actual meal afterwards. A live error appears once enough pairs exist.</p>{% endif %}
+  </div>
+  <div class="card"><h3>Insights</h3><div class="sub">Rule-based, each with its evidence.</div>
+    {% for i in insights %}<div class="insight {{ i.severity }}"><span class="dot"></span><div>{{ i.text }}{% if i.severity == 'estimate' %} <span class="badge b-neutral">Estimate</span>{% endif %}<small>Evidence: {{ i.evidence }}</small></div></div>
+    {% else %}<p class="muted">No insight is supported by the records yet. Insights need at least 5 observations per item.</p>{% endfor %}
+    {% if not has_costs %}<p class="small muted" style="margin-top:10px">Add a cost per unit for items in <a href="{{ url_for('pages.settings_page') }}#items">Settings</a> to see an estimated cost of avoidable waste.</p>{% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}{% include 'partials/_chart_scripts.html' %}{% endblock %}

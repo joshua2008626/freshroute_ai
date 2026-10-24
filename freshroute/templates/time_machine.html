@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% from 'partials/_macros.html' import kpi, empty, chart with context %}
+{% block title %}Time Machine{% endblock %}
+{% block heading %}Time Machine{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Time Machine: what if you had followed the suggestions?</h1>
+  <p>Replays your last {{ tm.days }} days. For each past service, FreshRoute's current rules are applied using <b>only the records that existed before that day</b>, then compared with what really happened. Quantities are in <b>{{ unit }}</b>.</p></div></div>
+
+<form class="card no-print" method="get" style="margin-bottom:16px">
+  <div class="row" style="align-items:flex-end;gap:14px;flex-wrap:wrap">
+    <div><label for="tm-days">Replay window</label>
+      <select id="tm-days" name="days">{% for d in [14, 28, 56, 90] %}<option value="{{ d }}" {{ 'selected' if d == tm.days }}>Last {{ d }} days</option>{% endfor %}</select></div>
+    <div><label for="tm-buffer">Safety buffer (%)</label>
+      <input id="tm-buffer" name="buffer" type="number" min="0" max="50" step="1" value="{{ tm.buffer_pct|round(0)|int }}" style="width:90px"></div>
+    <button class="btn" type="submit">Replay</button>
+    <span class="small muted">Starts from your saved buffer ({{ settings.safety_buffer_pct|num(0) }}%). Changing it here does not change your settings.</span>
+  </div>
+</form>
+
+{% if tm.excluded %}<div class="notice warn">{{ tm.excluded }} record(s) in other units are left out so quantities are never mixed.</div>{% endif %}
+
+{% if tm.status == 'insufficient' %}
+  {{ empty('Not enough history to replay', 'The Time Machine needs at least 3 earlier records for an item and meal before it can suggest a quantity for a later day. Import or record more data and come back.', url_for('pages.import_page'), 'Import data') }}
+{% else %}
+{% if tm.status == 'thin' %}<div class="notice warn">Only {{ tm.n }} services could be replayed, so treat these numbers as rough.</div>{% endif %}
+<div class="notice"><b>How to read this.</b> Records show what was <i>consumed</i>, not what students <i>wanted</i>. When a service ran out, true demand is unknown, so results for those {{ tm.n_ran_out }} service(s) are shown as <b>ranges</b>, never as one confident figure. This is a replay of the past, not a promise about the future, and uses the baseline forecast (no model is refit per day).</div>
+
+<div class="grid g3">
+  {{ kpi('Actual waste', tm.actual.waste_pct|pct, tm.n ~ ' services · ' ~ tm.window[0] ~ ' to ' ~ tm.window[1], '', 'Leftovers ÷ prepared for the replayed services, as recorded.') }}
+  {{ kpi('Waste with suggestions', (tm.policy.waste_pct_high|pct if (tm.policy.waste_pct_low|round(1)) == (tm.policy.waste_pct_high|round(1)) else tm.policy.waste_pct_low|pct ~ ' to ' ~ tm.policy.waste_pct_high|pct), 'Range because ran-out services hide true demand', '', 'Lower end assumes no extra demand on ran-out days; upper end assumes demand exactly equalled what was prepared then.', 'predicted') }}
+  {{ kpi('Services that ran out', tm.actual.ran_out ~ ' → ' ~ tm.policy.short_sure ~ '+', (tm.policy.short_maybe ~ ' more could also have run out') if tm.policy.short_maybe else 'Counted only where the shortfall is certain', '', 'Left: services that actually ran out. Right: services where the suggestion was certainly below demand (a minimum; the real number could be higher).', 'predicted') }}
+</div>
+
+<div class="card" style="margin-top:16px"><h3>Verdict</h3>
+  {% if tm.leftovers_reduced_at_least > 0 %}
+  <p>Even on the least favourable reading, following the suggestions would have left <b>at least {{ tm.leftovers_reduced_at_least|num(0) }} {{ unit }} less</b> uneaten food over these {{ tm.n }} services ({{ tm.actual.leftovers|num(0) }} → at most {{ tm.policy.leftovers_high|num(0) }}).
+  {% else %}
+  <p>On the least favourable reading, the suggestions would <b>not</b> have reduced leftovers over this window ({{ tm.actual.leftovers|num(0) }} actual vs up to {{ tm.policy.leftovers_high|num(0) }}).
+  {% endif %}
+  The trade-off: at least <b>{{ tm.policy.short_sure }}</b> service(s) ({{ tm.policy.short_sure_pct|pct }}) would certainly have run short, against <b>{{ tm.actual.ran_out }}</b> ({{ tm.actual.ran_out_pct|pct }}) that really did, with at least {{ tm.policy.short_units_min|num(0) }} {{ unit }} of known unmet demand.</p>
+  <p class="small muted">Less waste is only a win if the kitchen is comfortable with the shortfall risk. Use the chart below to pick a buffer you are happy with.</p>
+</div>
+
+<div class="grid g2" style="margin-top:16px">
+  {{ chart('tm_frontier', 'Waste vs running short, by safety buffer', 'Solid: with suggestions (waste = upper bound, short = certain only). Dashed: what actually happened', 300) }}
+  {{ chart('tm_daily', 'Leftovers per day: actual vs with suggestions', 'With-suggestion line is the upper bound', 300) }}
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}{% include 'partials/_chart_scripts.html' %}{% endblock %}

@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% from 'partials/_macros.html' import csrf, source_badge with context %}
+{% block title %}{{ 'Edit' if record else 'Add' }} record{% endblock %}
+{% block heading %}{{ 'Edit record' if record else 'Record a meal' }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>{{ 'Edit record' if record else 'Record a meal' }}</h1>
+  <p>Enter what was prepared and what was eaten. Leftovers are calculated for you.{% if record %} Source: {{ source_badge(record.source) }}{% endif %}</p></div></div>
+{% for e in errors %}<div class="flash error" role="alert">{{ e }}</div>{% endfor %}
+{% for w in warnings %}<div class="flash warning">{{ w }}</div>{% endfor %}
+<form class="card" method="post" style="max-width:820px" data-loading="Saving…">
+  {{ csrf() }}
+  <div class="form-grid">
+    <div class="field"><label for="date">Date served</label><input id="date" type="date" name="date" value="{{ form.date }}" max="{{ today }}" required></div>
+    <div class="field"><label for="meal">Meal</label><select id="meal" name="meal" required>{% for m in settings.meals %}<option {{ 'selected' if form.meal == m }}>{{ m }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="food_item">Food item</label><input id="food_item" name="food_item" list="item-list" value="{{ form.food_item }}" maxlength="60" required autocomplete="off">
+      <datalist id="item-list">{% for i in items %}<option value="{{ i.name }}">{% endfor %}</datalist><div class="hint">Pick an existing item or type a new one.</div></div>
+    <div class="field"><label for="unit">Unit</label><select id="unit" name="unit">{% for u in settings.units %}<option {{ 'selected' if form.unit == u }}>{{ u }}</option>{% endfor %}</select><div class="hint">An item keeps one unit across all records.</div></div>
+    <div class="field"><label for="qp">Quantity prepared</label><input id="qp" name="quantity_prepared" type="number" step="any" min="0" value="{{ form.quantity_prepared }}" required></div>
+    <div class="field"><label for="qc">Quantity consumed</label><input id="qc" name="quantity_consumed" type="number" step="any" min="0" value="{{ form.quantity_consumed }}" required></div>
+    <div class="field"><label for="lo">Leftovers <span class="muted">(optional check)</span></label><input id="lo" name="leftovers" type="number" step="any" min="0" value="{{ form.leftovers }}"><div class="hint">Leave empty to use prepared − consumed. If you enter a value that disagrees, the record is flagged.</div></div>
+    <div class="field"><label for="rd">Redistributed or donated <span class="muted">(optional)</span></label><input id="rd" name="redistributed" type="number" step="any" min="0" value="{{ form.redistributed }}"><div class="hint">Part of the leftovers that was actually reused or donated.</div></div>
+    <div class="field"><label for="sc">Student count <span class="muted">(optional)</span></label><input id="sc" name="student_count" type="number" min="0" step="1" value="{{ form.student_count }}"></div>
+    <div class="field"><label for="notes">Notes <span class="muted">(optional)</span></label><input id="notes" name="notes" maxlength="300" value="{{ form.notes }}"></div>
+  </div>
+  <div class="row"><button class="btn" type="submit">Save record</button><a class="btn secondary" href="{{ url_for('pages.records_page') }}">Cancel</a></div>
+</form>
+{% endblock %}

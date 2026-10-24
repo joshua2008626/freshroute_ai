@@ -1,0 +1,3 @@
+<script id="chart-data" type="application/json">{{ charts|tojson }}</script>
+{% if chartjs_available %}<script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>{% endif %}
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>

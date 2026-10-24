@@ -1,0 +1,55 @@
+{% from 'partials/_macros.html' import logo, icon, csrf with context %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ APP_NAME }}{% endblock %} · {{ APP_NAME }}</title>
+  <meta name="description" content="{{ TAGLINE }} Forecast cafeteria demand and cut avoidable food waste.">
+  <link rel="icon" href="{{ url_for('static', filename='img/favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="shell">
+  <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+    <a class="brand" href="{{ url_for('pages.landing') }}">{{ logo(38) }}<span><b>FreshRoute AI</b><small>{{ TAGLINE }}</small></span></a>
+    <nav class="nav">
+      {% for key, label, path, ic in NAV_ITEMS %}
+      <a href="{{ path }}" {% if request.path == path or (path != '/' and request.path.startswith(path + '/')) %}aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ label }}</span></a>
+      {% endfor %}
+    </nav>
+    <div class="side-card">
+      <b>{{ settings.cafeteria_name }}</b><br>
+      {{ total_records }} records stored<br>
+      <span class="small">demo {{ source_counts.demo }} · uploads {{ source_counts.upload }} · manual {{ source_counts.manual }}</span>
+    </div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <button class="btn secondary small menu-btn" type="button" id="menu-btn" aria-controls="sidebar" aria-expanded="false" aria-label="Open navigation">{{ icon('menu') }}</button>
+      <div class="title">{% block heading %}{{ APP_NAME }}{% endblock %}</div>
+      <form class="scope-form no-print" method="post" action="{{ url_for('pages.set_scope') }}">
+        {{ csrf() }}<input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+        <label for="scope-select" class="muted" style="margin:0;font-weight:500">Data source</label>
+        <select id="scope-select" name="scope" data-autosubmit>
+          {% for s in scopes %}<option value="{{ s }}" {{ 'selected' if s == scope }}>{{ scope_labels[s] }}</option>{% endfor %}
+        </select>
+        <noscript><button class="btn small" type="submit">Switch</button></noscript>
+      </form>
+    </header>
+    {% if demo_in_scope %}
+    <div class="banner" role="note"><b>Synthetic demo data is included.</b> Records marked “Synthetic demo” belong to a fictional cafeteria and are not real performance. Switch the data source above to see only your own records.</div>
+    {% endif %}
+    <main class="content" id="main">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in messages %}<div class="flash {{ cat }}" role="{{ 'alert' if cat == 'error' else 'status' }}">{{ msg }}</div>{% endfor %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
